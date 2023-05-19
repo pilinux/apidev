@@ -138,20 +138,20 @@ func SetupRouter(configure *gconfig.Configuration) (*gin.Engine, error) {
 			rUsers.PUT("", controller.UpdateUserProfile)
 
 			// Note
-			rPosts := v1.Group("notes")
-			rPosts.Use(gmiddleware.JWT())
+			rNotes := v1.Group("notes")
+			rNotes.Use(gmiddleware.JWT())
 			if configure.Security.Must2FA == gconfig.Activated {
-				rPosts.Use(gmiddleware.TwoFA(
+				rNotes.Use(gmiddleware.TwoFA(
 					configure.Security.TwoFA.Status.On,
 					configure.Security.TwoFA.Status.Off,
 					configure.Security.TwoFA.Status.Verified,
 				))
 			}
-			rPosts.GET("", controller.GetNotes)
-			rPosts.GET("/:id", controller.GetNote)
-			rPosts.POST("", controller.CreateNote)
-			rPosts.PUT("/:id", controller.UpdateNote)
-			rPosts.DELETE("/:id", controller.DeleteNote)
+			rNotes.GET("", controller.GetNotes)
+			rNotes.GET("/:id", controller.GetNote)
+			rNotes.POST("", controller.CreateNote)
+			rNotes.PUT("/:id", controller.UpdateNote)
+			rNotes.DELETE("/:id", controller.DeleteNote)
 		}
 	}
 
