@@ -6,6 +6,7 @@ import (
 	gconfig "github.com/pilinux/gorest/config"
 	gcontroller "github.com/pilinux/gorest/controller"
 	gmiddleware "github.com/pilinux/gorest/lib/middleware"
+	gservice "github.com/pilinux/gorest/service"
 
 	"apidev/controller"
 )
@@ -62,7 +63,11 @@ func SetupRouter(configure *gconfig.Configuration) (*gin.Engine, error) {
 
 	// Sentry.io
 	if configure.Logger.Activate == gconfig.Activated {
-		r.Use(gmiddleware.SentryCapture(configure.Logger.SentryDsn))
+		r.Use(gmiddleware.SentryCapture(
+			configure.Logger.SentryDsn,
+			configure.Server.ServerEnv,
+			configure.Version,
+		))
 	}
 
 	// WAF
@@ -85,17 +90,26 @@ func SetupRouter(configure *gconfig.Configuration) (*gin.Engine, error) {
 			v1.POST("register", gcontroller.CreateUserAuth)
 
 			// Login - app issues JWT
+			// - if cookie management is enabled, save tokens on client browser
 			v1.POST("login", gcontroller.Login)
 
+			// Logout
+			// - if cookie management is enabled, delete tokens from cookies
+			// - if Redis is enabled, save tokens in a blacklist until TTL
+			rLogout := v1.Group("logout")
+			rLogout.Use(gmiddleware.JWT()).Use(gmiddleware.RefreshJWT()).Use(gservice.JWTBlacklistChecker())
+			rLogout.POST("", gcontroller.Logout)
+
 			// Refresh - app issues new JWT
+			// - if cookie management is enabled, save tokens on client browser
 			rJWT := v1.Group("refresh")
-			rJWT.Use(gmiddleware.RefreshJWT())
+			rJWT.Use(gmiddleware.RefreshJWT()).Use(gservice.JWTBlacklistChecker())
 			rJWT.POST("", gcontroller.Refresh)
 
 			// Two-factor authentication
 			if configure.Security.Must2FA == gconfig.Activated {
 				r2FA := v1.Group("2fa")
-				r2FA.Use(gmiddleware.JWT())
+				r2FA.Use(gmiddleware.JWT()).Use(gservice.JWTBlacklistChecker())
 				r2FA.POST("setup", gcontroller.Setup2FA)
 				r2FA.POST("activate", gcontroller.Activate2FA)
 				r2FA.POST("validate", gcontroller.Validate2FA)
@@ -112,7 +126,7 @@ func SetupRouter(configure *gconfig.Configuration) (*gin.Engine, error) {
 
 			// Update/reset password
 			rPass := v1.Group("password")
-			rPass.Use(gmiddleware.JWT())
+			rPass.Use(gmiddleware.JWT()).Use(gservice.JWTBlacklistChecker())
 			if configure.Security.Must2FA == gconfig.Activated {
 				rPass.Use(gmiddleware.TwoFA(
 					configure.Security.TwoFA.Status.On,
@@ -125,7 +139,7 @@ func SetupRouter(configure *gconfig.Configuration) (*gin.Engine, error) {
 
 			// User
 			rUsers := v1.Group("users")
-			rUsers.Use(gmiddleware.JWT())
+			rUsers.Use(gmiddleware.JWT()).Use(gservice.JWTBlacklistChecker())
 			if configure.Security.Must2FA == gconfig.Activated {
 				rUsers.Use(gmiddleware.TwoFA(
 					configure.Security.TwoFA.Status.On,
@@ -139,7 +153,7 @@ func SetupRouter(configure *gconfig.Configuration) (*gin.Engine, error) {
 
 			// Note
 			rNotes := v1.Group("notes")
-			rNotes.Use(gmiddleware.JWT())
+			rNotes.Use(gmiddleware.JWT()).Use(gservice.JWTBlacklistChecker())
 			if configure.Security.Must2FA == gconfig.Activated {
 				rNotes.Use(gmiddleware.TwoFA(
 					configure.Security.TwoFA.Status.On,
