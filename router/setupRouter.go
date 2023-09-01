@@ -5,6 +5,7 @@ import (
 	"github.com/gin-gonic/gin"
 	gconfig "github.com/pilinux/gorest/config"
 	gcontroller "github.com/pilinux/gorest/controller"
+	gexample "github.com/pilinux/gorest/example/controller"
 	gmiddleware "github.com/pilinux/gorest/lib/middleware"
 	gservice "github.com/pilinux/gorest/service"
 
@@ -136,6 +137,18 @@ func SetupRouter(configure *gconfig.Configuration) (*gin.Engine, error) {
 			}
 			// change password while logged in
 			rPass.POST("edit", gcontroller.PasswordUpdate)
+
+			// Test JWT
+			rTestJWT := v1.Group("test-jwt")
+			rTestJWT.Use(gmiddleware.JWT()).Use(gservice.JWTBlacklistChecker())
+			if configure.Security.Must2FA == gconfig.Activated {
+				rTestJWT.Use(gmiddleware.TwoFA(
+					configure.Security.TwoFA.Status.On,
+					configure.Security.TwoFA.Status.Off,
+					configure.Security.TwoFA.Status.Verified,
+				))
+			}
+			rTestJWT.GET("", gexample.AccessResource)
 
 			// User
 			rUsers := v1.Group("users")
